@@ -10,7 +10,7 @@ import base64
 from PIL import Image
 import cv2
 import io
-from pyindi import device as INDIDevice
+from pyindi.device import device as INDIDevice
 
 import logging
 

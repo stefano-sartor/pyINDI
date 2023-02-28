@@ -1,3 +1,4 @@
 click==7.1.2
 lxml==4.6.3
 tornado==6.1
+astropy~=5.2

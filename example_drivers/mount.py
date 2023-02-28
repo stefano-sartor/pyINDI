@@ -18,7 +18,7 @@ from configparser import ConfigParser
 import os
 
 sys.path.insert(0, str(Path.cwd().parent))
-from pyindi import device as INDIDevice
+from pyindi.device import device as INDIDevice
 
 
 if "PYINDI_CONFIG_PATH" in os.environ:
