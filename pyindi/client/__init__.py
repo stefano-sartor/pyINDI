@@ -11,5 +11,6 @@
 '''
 
 from .client import *
+from .gateway import Gateway
 
-__all__ = ['INDIConn','INDIClient','INDIClientSingleton','INDIClientContainer']
+__all__ = ['INDIConn','INDIClient','INDIClientSingleton','INDIClientContainer','Gateway']
