@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import random
 sys.path.insert(0, str(Path.cwd().parent))
-from pyindi.device.device import device
+from pyindi.device import device
 
 """
 This file uses a skeleton xml file to initialize and
