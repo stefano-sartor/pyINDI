@@ -131,7 +131,7 @@ class INDIConn:
         -------
         None
         """
-        logging.debug('Sending message')
+        #logging.debug('Sending message')
         msg = msg.encode()
         self.writer.write(msg)
         await self.writer.drain()
@@ -149,7 +149,7 @@ class INDIConn:
         ---------
         None
         """
-        logging.debug('Receiving message')
+        #logging.debug('Receiving message')
         if self.reader.at_eof():
             raise Exception("INDI server closed")
 

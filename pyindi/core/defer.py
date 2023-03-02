@@ -173,11 +173,13 @@ class DeferAction(DeferBase):
     
 
 class DeferChain(DeferBase):
-    def __init__(self) -> None:
+    def __init__(self,first=None) -> None:
         super().__init__()
         self.log = logging.getLogger('DeferChain')
 
-        b = Just(IPS.Ok,"chain begin")
+        b = first
+        if b is None:
+            b = Just(IPS.Ok,"chain begin")
         self.future_links = [b]
 
     def add(self,action):
