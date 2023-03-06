@@ -35,6 +35,7 @@ class DeferBase(ABC):
         super().__init__()
         loop = asyncio.get_event_loop()
         self.log = logging.getLogger('Defer')
+        self.result = None
 
     @abstractmethod
     async def wait(self):
@@ -98,9 +99,9 @@ class DeferProperty(DeferBase):
         return self.check()
 
     def check(self):
-        if self.prop is not None:
-            return DeferResult(self.prop.state, self.prop, "data ready")   
-               
+        if self.result is not None:
+            return self.result
+                      
         if not self.step_0.done():
             return DeferResult(IPS.Busy,None, "Waiting for triggering event to complete")
         if not self.step_1.done():
@@ -113,7 +114,8 @@ class DeferProperty(DeferBase):
             return DeferResult(IPS.Alert,None, "Property not available, maybe device has crashed")
 
         self.prop = vec
-        return DeferResult(self.prop.state, self.prop, "data ready")
+        self.result = DeferResult(self.prop.state, self.prop, "data ready")
+        return self.result
         
     def __repr__(self) -> str:
         return f'DeferProperty("{self.dev_name}"."{self.prop_name}" = {self.prop})'
@@ -131,8 +133,6 @@ class DeferAction(DeferBase):
 
         self.step_1 = loop.create_future()
         self.step_2 = None
-
-        self.result = None
 
         self.step_0.add_done_callback(lambda x: self.__run(x))
 
@@ -183,13 +183,17 @@ class DeferChain(DeferBase):
         self.future_links = [b]
 
     def add(self,action):
+        self.result = None
         a =  DeferAction(self.future_links[-1],action)
         self.future_links.append(a)
 
     async def wait(self):
-        return await self.future_links[-1]
+        self.result =  await self.future_links[-1]
+        return self.result
 
     def check(self):
+        if self.result is not None:
+            return self.result
         return self.future_links[-1].check()
 
     

@@ -37,8 +37,6 @@ class DeferImage(DeferBase):
 
         self.hdulist = None
 
-        self.result = None
-
     async def wait(self):
         exposure = await self.exp_prop
 

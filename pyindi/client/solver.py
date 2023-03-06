@@ -27,6 +27,7 @@ Y_IMAGE
 MAG_AUTO
 FLUX_AUTO
 FLUX_MAX
+FWHM_IMAGE
 CXX_IMAGE
 CYY_IMAGE
 CXY_IMAGE
@@ -102,7 +103,7 @@ class DeferAstrometry(DeferBase):
         self.hdu = hdu
         uu = self.conf['uu']
 
-        self.result = None
+        self.rc = None
 
         self.path_fits = self.conf['base_path'].joinpath(uu+'.fits')
         self.path_wcs = self.conf['base_path'].joinpath(uu+'.wcs')
@@ -153,8 +154,7 @@ class DeferAstrometry(DeferBase):
 
     async def wait(self):
         await self.coro
-        await self.proc.wait()
-        await asyncio.sleep(0.1) # need to yield to loop
+        self.rc = await self.proc.wait()
         return self.check()
 
     def check(self):
@@ -163,13 +163,10 @@ class DeferAstrometry(DeferBase):
 
         if self.proc is None:
             return DeferResult(IPS.Busy, None,'subprocess not created yet')
-
-        if self.proc.returncode is None:
-            return DeferResult(IPS.Busy, None,'sextractor still running')
-        elif self.proc.returncode != 0:
-            self.result = DeferResult(
-                IPS.Alert, None, f'SExtractor exited with code {self.proc.returncode}')
-            return self.result
+        if self.rc is None:
+            self.rc = self.proc.returncode
+        if self.rc is None:
+            return DeferResult(IPS.Busy, None,'Astrometry.net still running')
         elif Path(self.path_wcs).exists():
             fw =  fits.open(self.path_wcs)
             self.wcs = WCS(fw[0])
@@ -179,7 +176,7 @@ class DeferAstrometry(DeferBase):
             return self.result
         else:
             self.result = DeferResult(
-                IPS.Alert,None, f'Astrometry failed to solve field')
+                IPS.Alert,None, f'Astrometry failed to solve field, exit code {self.proc.returncode}')
             return self.result
 
 
@@ -189,7 +186,7 @@ class DeferSEx(DeferBase):
         self.conf = deepcopy(conf)
         self.log = logging.getLogger('SExtractor')
 
-        self.result = None
+        self.rc = None
         self.data = None
 
         self.uu = uuid4().hex
@@ -240,8 +237,7 @@ class DeferSEx(DeferBase):
 
     async def wait(self):
         await self.coro
-        await self.proc.wait()
-        await asyncio.sleep(0.1) # need to yield to loop
+        self.rc = await self.proc.wait()
         return self.check()
 
     def check(self):
@@ -251,11 +247,14 @@ class DeferSEx(DeferBase):
         if self.proc is None:
             return DeferResult(IPS.Busy, None,'subprocess not created yet')
 
-        if self.proc.returncode is None:
-            return DeferResult(IPS.Busy, None,'sextractor still running')
-        elif self.proc.returncode != 0:
+        if self.rc is None:
+            self.rc = self.proc.returncode
+
+        if self.rc is None:
+            return DeferResult(IPS.Busy, None,'SExtractior still running')
+        elif self.rc != 0:
             self.result = DeferResult(
-                IPS.Alert,None, f'SExtractor exited with code {self.proc.returncode}')
+                IPS.Alert,None, f'SExtractor exited with code {self.rc}')
             return self.result
         else:
             data = deepcopy(self.conf)
@@ -291,8 +290,8 @@ class FieldSolver:
     def sex(self, hdu):
         return DeferSEx(hdu, self.conf)
 
-    def solve(self, hdu):
-        obj = self.sex(hdu)
+    def solve(self, hdu, defersex=None):
+        obj = self.sex(hdu) if defersex is None else defersex
         chain = DeferChain()
         chain.add(lambda _: wait_await(obj))
 
