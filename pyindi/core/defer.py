@@ -141,7 +141,7 @@ class DeferAction(DeferBase):
         return cls(awaitable,lambda x : continue_if_ok(x,action,*args))
 
     def __run(self, res):
-        self.log.info(f'step0: {res.result()}')
+        self.log.debug(f'step0: {res.result()}')
         loop = asyncio.get_event_loop()
         self.step_2 = loop.create_task(self.action(res))
         self.step_1.set_result(True)

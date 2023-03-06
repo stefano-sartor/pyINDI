@@ -95,7 +95,7 @@ ASTROMETRY_COMMAND = '{astrometry_exec} '\
     '{fits_file}.xyls'
 
 class DeferAstrometry(DeferBase):
-    def __init__(self, hdu, conf) -> None:
+    def __init__(self, hdu, conf,delete_temp=True) -> None:
         super().__init__()
         self.conf = deepcopy(conf)
         self.log = logging.getLogger('Astrometry.net')
@@ -104,6 +104,9 @@ class DeferAstrometry(DeferBase):
         uu = self.conf['uu']
 
         self.rc = None
+
+        self.del_temp = delete_temp
+
 
         self.path_fits = self.conf['base_path'].joinpath(uu+'.fits')
         self.path_wcs = self.conf['base_path'].joinpath(uu+'.wcs')
@@ -173,6 +176,12 @@ class DeferAstrometry(DeferBase):
             self.hdu.header.update(self.wcs.to_header())
             self.result = DeferResult(IPS.Ok, self.wcs, 'field solved')
             fw.close()
+            if self.del_temp:
+                try:
+                    self.path_xyls.unlink()
+                except Exception as e:
+                    self.log.warning(f'cannot remove temp file {e}')
+
             return self.result
         else:
             self.result = DeferResult(
@@ -181,13 +190,15 @@ class DeferAstrometry(DeferBase):
 
 
 class DeferSEx(DeferBase):
-    def __init__(self, hdu, conf) -> None:
+    def __init__(self, hdu, conf,delete_temp=True) -> None:
         super().__init__()
         self.conf = deepcopy(conf)
         self.log = logging.getLogger('SExtractor')
 
         self.rc = None
         self.data = None
+
+        self.del_temp = delete_temp
 
         self.uu = uuid4().hex
         self.conf['uu'] = self.uu
@@ -259,6 +270,12 @@ class DeferSEx(DeferBase):
         else:
             data = deepcopy(self.conf)
             self.result = DeferResult(IPS.Ok, data,"data ready")
+            if self.del_temp:
+                try:
+                    path_fits = self.conf['base_path'].joinpath(self.uu+'.fits')
+                    path_fits.unlink()
+                except Exception as e:
+                    self.log.warning(f'cannot remove temp file {e}')
             return self.result
 
 
