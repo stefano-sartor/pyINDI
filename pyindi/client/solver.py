@@ -94,23 +94,124 @@ ASTROMETRY_COMMAND = '{astrometry_exec} '\
     '-W {fits_file}.wcs '\
     '{fits_file}.xyls'
 
+class DelBucket(object):
+    def __init__(self) -> None:
+        self.log = logging.getLogger('DelBucket')
+        self.bucket = []
+
+    def add(self,p):
+        pp = Path(p).expanduser().absolute()
+        self.bucket.append(pp)
+
+    def __del__(self):
+        for p in self.bucket:
+            try:
+                p.unlink()
+            except Exception as e:
+                self.log.debug(f'cannot remove file {e}')   
+
+class DeferSEx(DeferBase):
+    def __init__(self, hdu, conf,delete_temp=True) -> None:
+        super().__init__()
+        self.conf = conf
+        self.log = logging.getLogger('SExtractor')
+
+        self.rc = None
+        self.data = None
+
+        self.del_temp = delete_temp
+
+        self.uu = uuid4().hex
+        self.conf['uu'] = self.uu
+        self.conf['fits_file'] = self.conf['base_path'].joinpath(self.uu)
+        self.conf['path_xyls'] = self.conf['base_path'].joinpath(self.uu+'.xyls')
+
+        path_fits = self.conf['base_path'].joinpath(self.uu+'.fits')
+        path_xyls = self.conf['base_path'].joinpath(self.uu+'.xyls')
+
+        hdu.writeto(path_fits, overwrite=True)
+
+        sexcommand = SEXTRACTOR_COMMAND.format(**self.conf)
+        self.log.debug(sexcommand)
+
+        self.proc = None
+        loop = asyncio.get_running_loop()
+
+        async def create_subprocess():
+            self.proc = await asyncio.create_subprocess_shell(
+                sexcommand, stdout=PIPE, stderr=PIPE)
+            return self.proc
+
+        async def stream_read():
+          while True:
+            out_eof =  self.proc.stdout.at_eof()
+            err_eof =  self.proc.stderr.at_eof()
+
+            if not out_eof:
+              line = await self.proc.stdout.readline()
+              l = line.decode('utf8')
+              s = l.replace('\x1b[1A', '').replace('\x1b[1M', '').strip()
+              self.log.debug(s)
+
+            if not err_eof:
+              line = await self.proc.stderr.readline()
+              l = line.decode('utf8')
+              s = l.replace('\x1b[1A', '').replace('\x1b[1M', '').strip()
+              self.log.debug(s)           
+
+            if out_eof and err_eof:
+              break
+
+        self.coro = loop.create_task(create_subprocess())
+
+        self.sub_chain = DeferChain()
+        self.sub_chain.add(lambda _: wait_await(create_subprocess()))
+        self.sub_chain.add(lambda _: wait_await(stream_read()))
+
+        self.conf['bucket'] = DelBucket()
+        if delete_temp:
+            self.conf['bucket'].add(path_fits)
+            self.conf['bucket'].add(path_xyls)
+
+    async def wait(self):
+        await self.coro
+        self.rc = await self.proc.wait()
+        return self.check()
+
+    def check(self):
+        if self.result is not None:
+            return self.result
+
+        if self.proc is None:
+            return DeferResult(IPS.Busy, None,'subprocess not created yet')
+
+        if self.rc is None:
+            self.rc = self.proc.returncode
+
+        if self.rc is None:
+            return DeferResult(IPS.Busy, None,'SExtractior still running')
+        elif self.rc != 0:
+            self.result = DeferResult(
+                IPS.Alert,None, f'SExtractor exited with code {self.rc}')
+            return self.result
+        else:
+            self.result = DeferResult(IPS.Ok, self.conf,"data ready")
+            return self.result
+
+
 class DeferAstrometry(DeferBase):
     def __init__(self, hdu, conf,delete_temp=True) -> None:
         super().__init__()
-        self.conf = deepcopy(conf)
+        self.conf = conf
         self.log = logging.getLogger('Astrometry.net')
 
         self.hdu = hdu
         uu = self.conf['uu']
 
         self.rc = None
-
         self.del_temp = delete_temp
 
-
-        self.path_fits = self.conf['base_path'].joinpath(uu+'.fits')
         self.path_wcs = self.conf['base_path'].joinpath(uu+'.wcs')
-        self.path_xyls = self.conf['base_path'].joinpath(uu+'.xyls')
 
         scale = hdu.header['SCALE']
         self.conf['scale_low'] = scale * 0.9
@@ -154,6 +255,14 @@ class DeferAstrometry(DeferBase):
         self.sub_chain.add(lambda _: wait_await(create_subprocess()))
         self.sub_chain.add(lambda _: wait_await(stream_read()))
 
+        if delete_temp:
+            path_xyls = self.conf['base_path'].joinpath(uu+'-indx.xyls')
+            path_axy = self.conf['base_path'].joinpath(uu+'.axy')
+            path_solved = self.conf['base_path'].joinpath(uu+'.solved')
+            self.conf['bucket'].add(self.path_wcs)
+            self.conf['bucket'].add(path_xyls)
+            self.conf['bucket'].add(path_axy)
+            self.conf['bucket'].add(path_solved)
 
     async def wait(self):
         await self.coro
@@ -176,106 +285,10 @@ class DeferAstrometry(DeferBase):
             self.hdu.header.update(self.wcs.to_header())
             self.result = DeferResult(IPS.Ok, self.wcs, 'field solved')
             fw.close()
-            if self.del_temp:
-                try:
-                    self.path_xyls.unlink()
-                except Exception as e:
-                    self.log.warning(f'cannot remove temp file {e}')
-
             return self.result
         else:
             self.result = DeferResult(
                 IPS.Alert,None, f'Astrometry failed to solve field, exit code {self.proc.returncode}')
-            return self.result
-
-
-class DeferSEx(DeferBase):
-    def __init__(self, hdu, conf,delete_temp=True) -> None:
-        super().__init__()
-        self.conf = deepcopy(conf)
-        self.log = logging.getLogger('SExtractor')
-
-        self.rc = None
-        self.data = None
-
-        self.del_temp = delete_temp
-
-        self.uu = uuid4().hex
-        self.conf['uu'] = self.uu
-        self.conf['fits_file'] = self.conf['base_path'].joinpath(self.uu)
-        self.conf['path_xyls'] = self.conf['base_path'].joinpath(self.uu+'.xyls')
-
-        path_fits = self.conf['base_path'].joinpath(self.uu+'.fits')
-
-        hdu.writeto(path_fits, overwrite=True)
-
-        sexcommand = SEXTRACTOR_COMMAND.format(**self.conf)
-        self.log.debug(sexcommand)
-
-        self.proc = None
-        loop = asyncio.get_running_loop()
-
-        async def create_subprocess():
-            self.proc = await asyncio.create_subprocess_shell(
-                sexcommand, stdout=PIPE, stderr=PIPE)
-            return self.proc
-
-        async def stream_read():
-          while True:
-            out_eof =  self.proc.stdout.at_eof()
-            err_eof =  self.proc.stderr.at_eof()
-
-            if not out_eof:
-              line = await self.proc.stdout.readline()
-              l = line.decode('utf8')
-              s = l.replace('\x1b[1A', '').replace('\x1b[1M', '').strip()
-              self.log.debug(s)
-
-            if not err_eof:
-              line = await self.proc.stderr.readline()
-              l = line.decode('utf8')
-              s = l.replace('\x1b[1A', '').replace('\x1b[1M', '').strip()
-              self.log.debug(s)           
-
-            if out_eof and err_eof:
-              break
-
-        self.coro = loop.create_task(create_subprocess())
-
-        self.sub_chain = DeferChain()
-        self.sub_chain.add(lambda _: wait_await(create_subprocess()))
-        self.sub_chain.add(lambda _: wait_await(stream_read()))
-
-    async def wait(self):
-        await self.coro
-        self.rc = await self.proc.wait()
-        return self.check()
-
-    def check(self):
-        if self.result is not None:
-            return self.result
-
-        if self.proc is None:
-            return DeferResult(IPS.Busy, None,'subprocess not created yet')
-
-        if self.rc is None:
-            self.rc = self.proc.returncode
-
-        if self.rc is None:
-            return DeferResult(IPS.Busy, None,'SExtractior still running')
-        elif self.rc != 0:
-            self.result = DeferResult(
-                IPS.Alert,None, f'SExtractor exited with code {self.rc}')
-            return self.result
-        else:
-            data = deepcopy(self.conf)
-            self.result = DeferResult(IPS.Ok, data,"data ready")
-            if self.del_temp:
-                try:
-                    path_fits = self.conf['base_path'].joinpath(self.uu+'.fits')
-                    path_fits.unlink()
-                except Exception as e:
-                    self.log.warning(f'cannot remove temp file {e}')
             return self.result
 
 
@@ -304,11 +317,11 @@ class FieldSolver:
             f.write(SEX_FILTER)
             f.close()
 
-    def sex(self, hdu):
-        return DeferSEx(hdu, self.conf)
+    def sex(self, hdu,delete_temp=True):
+        return DeferSEx(hdu, deepcopy(self.conf),delete_temp)
 
-    def solve(self, hdu, defersex=None):
-        obj = self.sex(hdu) if defersex is None else defersex
+    def solve(self, hdu, defersex=None,delete_temp=True):
+        obj = self.sex(hdu,delete_temp) if defersex is None else defersex
         chain = DeferChain()
         chain.add(lambda _: wait_await(obj))
 
@@ -317,23 +330,7 @@ class FieldSolver:
             if res.state != IPS.Ok:
                 return await Just(IPS.Alert, "fail from previous error", data=res)
             else:
-                return await DeferAstrometry(hdu, res.data)
+                return await DeferAstrometry(hdu, res.data,delete_temp)
 
         chain.add(lambda x: continuation(x))
         return chain
-
-
-def get_flux_max(cat, pos_x, pos_y):
-    x = cat.data['X_IMAGE']
-    y = cat.data['Y_IMAGE']
-
-    x2 = np.power(x-pos_x, 2)
-    y2 = np.power(y-pos_y, 2)
-
-    d = np.sqrt(x2+y2)
-
-    min_d = np.amin(d)
-
-    idx = np.where(d <= min_d)[0][0]
-
-    return min_d, cat.data[idx]
