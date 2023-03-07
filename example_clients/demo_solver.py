@@ -28,17 +28,18 @@ rootLogger.addHandler(consoleHandler)
 
     
 async def main(args):
-
+    
     solver = FieldSolver()
 
     hdulist = fits.open(args.fits_file)
 
-    res = await solver.solve(hdulist[0])
+    res = await solver.solve(hdulist[0],delete_temp=not args.keep_temp)
     logging.info(f'{res.message}:{res.state} {res.data}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='Field sover')
     parser.add_argument('fits_file', type=Path)
+    parser.add_argument('-k', '--keep-temp', type=bool, default=False)
 
     args = parser.parse_args()
 

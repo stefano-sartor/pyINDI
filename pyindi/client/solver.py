@@ -212,6 +212,8 @@ class DeferAstrometry(DeferBase):
         self.del_temp = delete_temp
 
         self.path_wcs = self.conf['base_path'].joinpath(uu+'.wcs')
+        path_indx = self.conf['base_path'].joinpath(uu+'-indx.xyls')
+        self.conf['path_indx'] = path_indx
 
         scale = hdu.header['SCALE']
         self.conf['scale_low'] = scale * 0.9
@@ -256,11 +258,10 @@ class DeferAstrometry(DeferBase):
         self.sub_chain.add(lambda _: wait_await(stream_read()))
 
         if delete_temp:
-            path_xyls = self.conf['base_path'].joinpath(uu+'-indx.xyls')
             path_axy = self.conf['base_path'].joinpath(uu+'.axy')
             path_solved = self.conf['base_path'].joinpath(uu+'.solved')
             self.conf['bucket'].add(self.path_wcs)
-            self.conf['bucket'].add(path_xyls)
+            self.conf['bucket'].add(path_indx)
             self.conf['bucket'].add(path_axy)
             self.conf['bucket'].add(path_solved)
 
