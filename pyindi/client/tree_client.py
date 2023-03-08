@@ -40,11 +40,9 @@ class PropertyControl:
 
         if not self.__busyORempty(vec):
             while len(self.futures) > 0:
-                logging.info(f"{len(self.futures)} FUTURES FOR {self.vec}")
                 f = self.futures.pop()
                 if not f.done():
                     f.set_result(vec)
-                    logging.info(f"set future {f} for vec {vec}")
                 elif f.cancelled():
                     logging.debug(f'future cancelled {f.result() if not f.cancelled() else f} for vec {vec}')
                 elif f.done():
