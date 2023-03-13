@@ -225,6 +225,12 @@ class Telescope(Device):
         chain.add(lambda x: continuation(x))
         return chain
 
+    def get_coord(self):
+        eq_name = "EQUATORIAL_EOD_COORD"
+        if (radec := self.gw.getVector(self.dev_name, eq_name)) is None:
+            raise RuntimeError(f'Cannot find curred EOD coordinates')
+        return TETE(ra=radec.items['RA'] * u.hour, dec=radec.items['DEC']*u.deg, location=self.getLocation(), obstime=Time.now())
+                            
     def refine_pointing(self, solver, hdulist, use_sync=True):
         step0 = None
         if hdulist[0].header.get('WCSAXES'):

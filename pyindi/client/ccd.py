@@ -126,6 +126,60 @@ class CCD(Device):
         loop = asyncio.get_running_loop()
         obj = loop.create_task(self.gw.sendVector(sw))
         return DeferProperty(self.gw, self.dev_name, pname,obj)
+    
+    def resetFrame(self):
+        pname = "CCD_FRAME_RESET"
+
+        if (sw := self.gw.getVector(self.dev_name,pname)) is None:
+            return Just(IPS.Alert, "CCD device not connected")
+        
+        for k in sw.items:
+            sw.items[k] = ISS.On
+
+        loop = asyncio.get_running_loop()
+        obj = loop.create_task(self.gw.sendVector(sw))
+        return DeferProperty(self.gw, self.dev_name, pname,obj)
+    
+    def setFrame(self,x,y,width,height):
+        pname = "CCD_FRAME"
+
+        if (vec := self.gw.getVector(self.dev_name,pname)) is None:
+            return Just(IPS.Alert, "CCD device not connected")
+
+        vec.items['X'] = x
+        vec.items['Y'] = y
+        vec.items['WIDTH'] = width
+        vec.items['HEIGHT'] = height
+
+        loop = asyncio.get_running_loop()
+        obj = loop.create_task(self.gw.sendVector(vec))
+        return DeferProperty(self.gw, self.dev_name, pname,obj)
+
+    def setBinning(self,hor,vert):
+        pname = "CCD_BINNING"
+
+        if (vec := self.gw.getVector(self.dev_name,pname)) is None:
+            return Just(IPS.Alert, "CCD device not connected")
+
+        vec.items['HOR_BIN'] = hor
+        vec.items['VER_BIN'] = vert
+
+        loop = asyncio.get_running_loop()
+        obj = loop.create_task(self.gw.sendVector(vec))
+        return DeferProperty(self.gw, self.dev_name, pname,obj)
+
+    def setHeader(self,object='Unknown',obeserver='Unknown'):
+        pname = "FITS_HEADER"
+
+        if (vec := self.gw.getVector(self.dev_name,pname)) is None:
+            return Just(IPS.Alert, "CCD device not connected")
+
+        vec.items['FITS_OBSERVER'] = obeserver
+        vec.items['FITS_OBJECT'] = object
+
+        loop = asyncio.get_running_loop()
+        obj = loop.create_task(self.gw.sendVector(vec))
+        return DeferProperty(self.gw, self.dev_name, pname,obj)
 
 
     def saveOnDevice(self, active: bool = True):

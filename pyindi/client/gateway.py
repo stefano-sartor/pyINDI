@@ -53,7 +53,7 @@ class Gateway(TreeClient):
             return 0
         return int(value)
 
-    def __get_device_from_interface(self,interface,dev_name=None):
+    def getDeviceFromInterface(self,interface,dev_name=None):
         if dev_name is not None:
             if interface.value & self.getDeviceInterface(dev_name) > 0:
                 return dev_name
@@ -67,19 +67,19 @@ class Gateway(TreeClient):
         raise RuntimeError(f'No Device implements {interface.name} interface')                
 
     def getFocuser(self, dev_name=None):    
-        dname = self.__get_device_from_interface(INTERFACE.FOCUSER,dev_name)
+        dname = self.getDeviceFromInterface(INTERFACE.FOCUSER,dev_name)
         return Focuser(self, dname)
            
     def getFilterWheel(self, dev_name=None):    
-        dname = self.__get_device_from_interface(INTERFACE.FILTER,dev_name)
+        dname = self.getDeviceFromInterface(INTERFACE.FILTER,dev_name)
         return FilterWheel(self, dname)
 
     def getTelescope(self, dev_name=None):    
-        dname = self.__get_device_from_interface(INTERFACE.TELESCOPE,dev_name)
+        dname = self.getDeviceFromInterface(INTERFACE.TELESCOPE,dev_name)
         return Telescope(self, dname)
 
     def getCCD(self, dev_name=None):    
-        dname = self.__get_device_from_interface(INTERFACE.CCD,dev_name)
+        dname = self.getDeviceFromInterface(INTERFACE.CCD,dev_name)
         xml = f'<enableBLOB device="{dname}">Also</enableBLOB>'
         asyncio.create_task(self.xml_to_indiserver(xml))
         return CCD(self, dname)
