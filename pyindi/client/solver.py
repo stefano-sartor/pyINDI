@@ -67,7 +67,6 @@ ASTROMETRY_COMMAND = '{astrometry_exec} '\
     '-O '\
     '--no-plots '\
     '--no-verify '\
-    '--no-tweak '\
     '--crpix-center '\
     '--match none '\
     '--corr none '\
@@ -216,8 +215,8 @@ class DeferAstrometry(DeferBase):
         self.conf['path_indx'] = path_indx
 
         scale = hdu.header['SCALE']
-        self.conf['scale_low'] = scale * 0.9
-        self.conf['scale_high'] = scale * 1.1
+        self.conf['scale_low'] = scale * 0.8
+        self.conf['scale_high'] = scale * 1.2
         self.conf['ra'] = hdu.header['RA']
         self.conf['dec'] = hdu.header['DEC']
         self.conf['width'] = hdu.header['NAXIS1']
