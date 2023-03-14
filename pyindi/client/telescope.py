@@ -248,7 +248,7 @@ class Telescope(Device):
         async def continuation(x):
             res = x.result()
             if res.state != IPS.Ok:
-                return Just(IPS.Alert, "cannot solve field")
+                return await Just(IPS.Alert, "cannot solve field")
 
             # N.B. RA--DEC e CRVAL1--CRVAL2 sono coordinate J2000.
 
