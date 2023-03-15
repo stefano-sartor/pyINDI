@@ -69,6 +69,11 @@ class Device:
         obj = loop.create_task(self.gw.sendVector(conn))
         return DeferProperty(self.gw,self.dev_name,pname,obj)
 
+    def isConnected(self):
+        if (conn := self.gw.getVector(self.dev_name,"CONNECTION")) is None:
+            return False
+        return conn.items['CONNECT']   == ISS.On    
+
     def connect(self):
         return self.__do_connect(True)
 
