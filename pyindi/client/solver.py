@@ -161,8 +161,6 @@ class DeferSEx(DeferBase):
             if out_eof and err_eof:
               break
 
-        self.coro = loop.create_task(create_subprocess())
-
         self.sub_chain = DeferChain()
         self.sub_chain.add(lambda _: wait_await(create_subprocess()))
         self.sub_chain.add(lambda _: wait_await(stream_read()))
@@ -173,7 +171,7 @@ class DeferSEx(DeferBase):
             self.conf['bucket'].add(path_xyls)
 
     async def wait(self):
-        await self.coro
+        await self.sub_chain
         self.rc = await self.proc.wait()
         return self.check()
 
@@ -250,8 +248,6 @@ class DeferAstrometry(DeferBase):
             if out_eof and err_eof:
               break
 
-        self.coro = loop.create_task(create_subprocess())
-
         self.sub_chain = DeferChain()
         self.sub_chain.add(lambda _: wait_await(create_subprocess()))
         self.sub_chain.add(lambda _: wait_await(stream_read()))
@@ -265,7 +261,7 @@ class DeferAstrometry(DeferBase):
             self.conf['bucket'].add(path_solved)
 
     async def wait(self):
-        await self.coro
+        await self.sub_chain
         self.rc = await self.proc.wait()
         return self.check()
 
