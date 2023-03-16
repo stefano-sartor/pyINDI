@@ -64,7 +64,7 @@ class XMLHandler(ContentHandler):
                 self._currentMessage = etree.Element(name, **dict(attr))
         except Exception as e:
             logging.error(f'startElement({name},{attr}):{type(e)}{e}')
-            raise
+            #raise
 
     def characters(self, content):
         try:
@@ -74,7 +74,7 @@ class XMLHandler(ContentHandler):
                 self._currentElement.text.write(content)
         except Exception as e:
             logging.error(f'characters({content}):{type(e)}{e}')
-            raise
+            #raise
 
     def endElement(self, name):
         try:
@@ -104,7 +104,7 @@ class XMLHandler(ContentHandler):
             elif name == self._currentElement.tag:
                 self._currentElement = self._rootElement
         except Exception as e:
-            logging.error(f'endElement({name}):{type(e)}{e}')
-            raise
+            logging.error(f'endElement({name}):{type(e)}{e} root_elem: |{self._rootElement}|')
+            self._rootElement = None
 
 

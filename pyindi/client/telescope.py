@@ -231,7 +231,7 @@ class Telescope(Device):
             raise RuntimeError(f'Cannot find curred EOD coordinates')
         return TETE(ra=radec.items['RA'] * u.hour, dec=radec.items['DEC']*u.deg, location=self.getLocation(), obstime=Time.now())
                             
-    def refine_pointing(self, solver, hdulist, use_sync=True):
+    def refine_pointing(self, solver, hdulist, target,use_guide=True):
         step0 = None
         if hdulist[0].header.get('WCSAXES'):
             try:
@@ -246,35 +246,62 @@ class Telescope(Device):
         chain = DeferChain(step0)
 
         async def continuation(x):
+            GUIDE_SPEED_ARCSECSEC = 15.041067 * 0.5
+            log = logging.getLogger("refine_pointing")
             res = x.result()
             if res.state != IPS.Ok:
                 return await Just(IPS.Alert, "cannot solve field")
 
             # N.B. RA--DEC e CRVAL1--CRVAL2 sono coordinate J2000.
 
-            ra_nom = hdulist[0].header['RA'] * u.deg
-            dec_nom = hdulist[0].header['DEC'] * u.deg
-
             ra_sol = hdulist[0].header['CRVAL1'] * u.deg
             dec_sol = hdulist[0].header['CRVAL2'] * u.deg
 
-            delta_ra = ra_nom-ra_sol
-            delta_dec = dec_nom-dec_sol
 
-            logging.getLogger("refine_pointing").info(
+            actual_coord = SkyCoord(ra=ra_sol, dec=dec_sol, frame="fk5")
+
+            target_fk5 = target.transform_to(actual_coord)
+
+            delta_ra, delta_dec = actual_coord.spherical_offsets_to(target_fk5.frame)
+
+
+            log.info(
                 f'delta RA: {delta_ra.to_value(u.arcsec):.2f}", Dec: {delta_dec.to_value(u.arcsec):.2f}"')
-
-            if not use_sync:
-                coord = SkyCoord(ra=ra_nom + delta_ra, dec=dec_nom +
+            
+            if not use_guide:
+                log.info('using goto')
+                coord = SkyCoord(ra=ra_sol + delta_ra, dec=dec_sol +
                                  delta_dec, frame="fk5")
                 return await self.goto(coord)
             else:
-                coord_actual  = SkyCoord(ra=ra_sol, dec=dec_sol, frame='fk5')
-                coord_nominal = SkyCoord(ra=ra_nom, dec=dec_nom, frame='fk5')
-                s = await self.sync(coord_actual)
-                if s.state != IPS.Ok:
-                    return await Just(IPS.Alert, "failed to Sync position", data=s)
-                return await self.goto(coord_nominal)
+                guide_chain = DeferChain()
+
+                ra_sec  = delta_ra.to_value(u.arcsec) / GUIDE_SPEED_ARCSECSEC
+                dec_sec = delta_dec.to_value(u.arcsec) / GUIDE_SPEED_ARCSECSEC
+
+                guide_ra  = abs(ra_sec*1000)
+                guide_dec = abs(dec_sec*1000)
+
+                if ra_sec < 0:
+                    obj = self.timed_guide(DIRECTION.WEST,guide_ra)
+                    guide_chain.add(lambda _ : wait_await(obj))
+                    log.info(f'GUIDE WEST {guide_ra:.1f}')
+                else:
+                    obj = self.timed_guide(DIRECTION.EAST,guide_ra)
+                    guide_chain.add(lambda _ : wait_await(obj))
+                    log.info(f'GUIDE EAST {guide_ra:.1f}')
+
+                if dec_sec > 0:
+                    obj = self.timed_guide(DIRECTION.NORTH,guide_dec)
+                    guide_chain.add(lambda _ : wait_await(obj))
+                    log.info(f'GUIDE NORTH {guide_dec:.1f}')
+                else:
+                    obj = self.timed_guide(DIRECTION.SOUTH,guide_dec)
+                    guide_chain.add(lambda _ : wait_await(obj))
+                    log.info(f'GUIDE SOUTH {guide_dec:.1f}')
+
+                return await guide_chain
+
         
         chain.add(lambda x: continuation(x))
         return chain
