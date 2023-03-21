@@ -36,6 +36,8 @@ class Telescope(Device):
     def __init__(self, gateway, dev_name) -> None:
         super().__init__(gateway, dev_name)
         self.location = None
+        self.guide_speed_ra = 15.041067 * 0.5
+        self.guide_speed_dec = 15.041067 * 0.5
 
     def getLocation(self):
         if self.location is not None:
@@ -303,5 +305,73 @@ class Telescope(Device):
                 return await guide_chain
 
         
+        chain.add(lambda x: continuation(x))
+        return chain
+
+    def guide_to(self, solver, hdulist, target):
+        step0 = None
+        if hdulist[0].header.get('WCSAXES'):
+            try:
+                data = WCS(hdulist[0].header)
+                step0 = Just(IPS.Ok, 'WCS already available',data = data)
+            except Exception as e:
+                self.log.error(f'error while creating WCS: {e}')
+
+        if step0 is None:
+            step0 = solver.solve(hdulist[0])
+
+        chain = DeferChain(step0)
+
+        async def continuation(x):
+            GUIDE_SPEED_ARCSECSEC = 15.041067 * 0.5
+            log = logging.getLogger("refine_pointing")
+            res = x.result()
+            if res.state != IPS.Ok:
+                return await Just(IPS.Alert, "cannot solve field")
+
+            # N.B. RA--DEC e CRVAL1--CRVAL2 sono coordinate J2000.
+
+            ra_sol = hdulist[0].header['CRVAL1'] * u.deg
+            dec_sol = hdulist[0].header['CRVAL2'] * u.deg
+
+
+            actual_coord = SkyCoord(ra=ra_sol, dec=dec_sol, frame="fk5")
+
+            target_fk5 = target.transform_to(actual_coord)
+
+            delta_ra, delta_dec = actual_coord.spherical_offsets_to(target_fk5.frame)
+
+
+            log.info(
+                f'delta RA: {delta_ra.to_value(u.arcsec):.2f}", Dec: {delta_dec.to_value(u.arcsec):.2f}"')
+
+            guide_chain = DeferChain()
+
+            ra_sec  = delta_ra.to_value(u.arcsec) / self.guide_speed_ra
+            dec_sec = delta_dec.to_value(u.arcsec) / self.guide_speed_dec
+
+            guide_ra  = round(abs(ra_sec*1000))
+            guide_dec = round(abs(dec_sec*1000))
+
+            if ra_sec < 0:
+                obj = self.timed_guide(DIRECTION.WEST,guide_ra)
+                guide_chain.add(lambda _ : wait_await(obj))
+                log.info(f'GUIDE WEST {guide_ra:.1f}')
+            else:
+                obj = self.timed_guide(DIRECTION.EAST,guide_ra)
+                guide_chain.add(lambda _ : wait_await(obj))
+                log.info(f'GUIDE EAST {guide_ra:.1f}')
+
+            if dec_sec > 0:
+                obj = self.timed_guide(DIRECTION.NORTH,guide_dec)
+                guide_chain.add(lambda _ : wait_await(obj))
+                log.info(f'GUIDE NORTH {guide_dec:.1f}')
+            else:
+                obj = self.timed_guide(DIRECTION.SOUTH,guide_dec)
+                guide_chain.add(lambda _ : wait_await(obj))
+                log.info(f'GUIDE SOUTH {guide_dec:.1f}')
+
+            return await guide_chain
+
         chain.add(lambda x: continuation(x))
         return chain
