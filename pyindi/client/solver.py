@@ -68,7 +68,6 @@ SEXTRACTOR_COMMAND = [
     '-CLEAN_PARAM 1',
     '-PHOT_AUTOPARAMS 2.5,3.5',
     '-MAG_ZEROPOINT 20',
-    '{fits_file}.fits',
 ]
 
 ASTROMETRY_COMMAND = [
@@ -100,7 +99,6 @@ ASTROMETRY_COMMAND = [
     '--uniformize 0',
     '--cancel {fits_file}.cancel',
     '-W {fits_file}.wcs',
-    '{fits_file}.xyls',
 ]
 
 
@@ -143,11 +141,13 @@ class DeferSEx(DeferBase):
 
         hdu.writeto(path_fits, overwrite=True)
 
-        sexcommand = ' '.join(self.conf['SEXTRACTOR_COMMAND']).format(**self.conf)
+        self.conf['SEXTRACTOR_COMMAND'].append('{fits_file}.fits')
+        sexcommand = ' '.join(
+            self.conf['SEXTRACTOR_COMMAND']).format(**self.conf)
         self.log.debug(sexcommand)
 
         self.proc = None
-        
+
         async def create_subprocess():
             self.proc = await asyncio.create_subprocess_shell(
                 sexcommand, stdout=PIPE, stderr=PIPE)
@@ -232,7 +232,9 @@ class DeferAstrometry(DeferBase):
         self.conf['width'] = hdu.header['NAXIS1']
         self.conf['height'] = hdu.header['NAXIS2']
 
-        astrocommand = ' '.join(self.conf['ASTROMETRY_COMMAND']).format(**self.conf)
+        self.conf['ASTROMETRY_COMMAND'].append('{fits_file}.xyls')
+        astrocommand = ' '.join(
+            self.conf['ASTROMETRY_COMMAND']).format(**self.conf)
         self.log.debug(astrocommand)
         self.proc = None
 
@@ -304,7 +306,6 @@ class FieldSolver:
         bp = Path(base_path)
         bp.mkdir(exist_ok=True)
 
-
         self.conf = {}
         self.conf['sex_exec'] = sex_exec
         self.conf['astrometry_exec'] = astrometry_exec
@@ -315,19 +316,19 @@ class FieldSolver:
         self.conf['ASTROMETRY_CFG'] = deepcopy(ASTROMETRY_CFG)
         self.conf['SEX_PARAM'] = deepcopy(SEX_PARAM)
         self.conf['SEX_FILTER'] = deepcopy(SEX_FILTER)
-        self.conf['SEXTRACTOR_COMMAND'] = deepcopy(SEXTRACTOR_COMMAND) 
+        self.conf['SEXTRACTOR_COMMAND'] = deepcopy(SEXTRACTOR_COMMAND)
         self.conf['ASTROMETRY_COMMAND'] = deepcopy(ASTROMETRY_COMMAND)
 
-        self.regen_conf() 
+        self.regen_conf()
 
     def regen_conf(self):
         uu = uuid4().hex
-        
+
         bp = self.conf['base_path']
 
         self.conf['astrometry_cfg_file'] = bp / f'astrometry_{uu}_.cfg'
-        self.conf['sex_param_file']     = bp  / f'sex_{uu}_.param'
-        self.conf['sex_filter_file']    = bp  / f'filter_{uu}_.conv'
+        self.conf['sex_param_file'] = bp / f'sex_{uu}_.param'
+        self.conf['sex_filter_file'] = bp / f'filter_{uu}_.conv'
 
         with open(self.conf['astrometry_cfg_file'], 'wt') as f:
             f.write('\n'.join(self.conf['ASTROMETRY_CFG']))
