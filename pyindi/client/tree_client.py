@@ -16,16 +16,20 @@ from xml.sax.expatreader import ExpatParser
 from pyindi.client import INDIClient
 import asyncio
 import time
+import datetime as dt
 from pyindi.core.indi_types import vector_factory,IPS,BLOBVectorProperty
 import logging
 from uuid import uuid4
 
 class PropertyControl:
-    def __init__(self):
+    def __init__(self,update_secs=20):
+        self.log = logging.getLogger('vec_ctl')
         self.vec = None
         self.futures = []
         self.callbacks = {}
         self.once = {}
+        self.update_secs = update_secs
+        self.last_update = dt.datetime.now()
 
     def __busyORempty(self,vec):
         if isinstance(vec,BLOBVectorProperty):
@@ -44,18 +48,25 @@ class PropertyControl:
                 if not f.done():
                     f.set_result(vec)
                 elif f.cancelled():
-                    logging.debug(f'future cancelled {f.result() if not f.cancelled() else f} for vec {vec}')
+                    self.log.debug(f'future cancelled {f.result() if not f.cancelled() else f} for vec {vec}')
                 elif f.done():
-                    logging.debug(f'future already done {f} for vec {vec}')
+                    self.log.debug(f'future already done {f} for vec {vec}')
                 else:
-                    logging.debug(f'invalid future {f.result() if not f.cancelled() else f} for vec {vec}')
+                    self.log.debug(f'invalid future {f.result() if not f.cancelled() else f} for vec {vec}')
 
         for k,cb in [*self.callbacks.items(),*self.once.items()]:
             try:
                 cb(vec)
             except Exception as error:
-                logging.error(f'callback[{k}] {vec.device}.{vec.name} error:{error}')
+                self.log.error(f'callback[{k}] {vec.device}.{vec.name} error:{error}')
         self.once={}
+
+        now = dt.datetime.now()
+        if len(self.futures) == 0:
+            self.last_update = now
+        elif (now - self.last_update).total_seconds() > self.update_secs:
+            self.log.info(f'{self.vec}')
+            self.last_update = now
 
     def get_future(self):
         loop = asyncio.get_event_loop()
@@ -63,7 +74,7 @@ class PropertyControl:
         self.futures.append(f)
         if not isinstance(self.vec,BLOBVectorProperty) and self.vec.state != IPS.Busy:
             f.set_result(self.vec)
-            logging.debug(f'get already done future {f} for vec {self.vec}')
+            self.log.debug(f'get already done future {f} for vec {self.vec}')
         return f
 
     def register_callback(self,callback,once=False):
@@ -91,7 +102,7 @@ class PropertyControl:
             try:
                 cb(None)
             except Exception as error:
-                logging.error(f'[CANCEL] callback[{k}] {self.vec.device}.{self.vec.name} error:{error}')
+                self.log.error(f'[CANCEL] callback[{k}] {self.vec.device}.{self.vec.name} error:{error}')
 
 
 class TreeClient(INDIClient):
