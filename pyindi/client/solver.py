@@ -21,6 +21,26 @@ import logging
 import asyncio
 from pyindi.core.indi_types import IPS
 from copy import deepcopy
+from os import environ as env
+from shutil import which
+
+SEXTRACTOR_ENV = 'SEXTRACTOR_EXEC'
+ASTROMETRY_ENV = 'ASTROMETRY_EXEC'
+
+SEXTRACTOR_EXEC = env.get(SEXTRACTOR_ENV)
+ASTROMETRY_EXEC = env.get(ASTROMETRY_ENV)
+
+if SEXTRACTOR_EXEC is None:
+    SEXTRACTOR_EXEC = which('sex')
+if SEXTRACTOR_EXEC is None:
+    SEXTRACTOR_EXEC = which('sextractor')
+if SEXTRACTOR_EXEC is None:
+    raise RuntimeError(f'could not find sextractor executable, please set {SEXTRACTOR_ENV} environment varialbe')
+
+if ASTROMETRY_ENV is None:
+    ASTROMETRY_ENV = which('solve-field')
+if ASTROMETRY_ENV is None:
+    raise RuntimeError(f'could not find solve-field executable, please set {ASTROMETRY_ENV} environment varialbe')
 
 SEX_PARAM = [
     'X_IMAGE',
@@ -302,13 +322,13 @@ class DeferAstrometry(DeferBase):
 
 
 class FieldSolver:
-    def __init__(self, sex_exec='/usr/bin/sex', astrometry_exec='/usr/bin/solve-field', base_path='/tmp/astrometry') -> None:
+    def __init__(self, base_path='/tmp/astrometry') -> None:
         bp = Path(base_path)
         bp.mkdir(exist_ok=True)
-
+     
         self.conf = {}
-        self.conf['sex_exec'] = sex_exec
-        self.conf['astrometry_exec'] = astrometry_exec
+        self.conf['sex_exec'] = SEXTRACTOR_EXEC
+        self.conf['astrometry_exec'] = ASTROMETRY_EXEC
         self.conf['radius'] = 3
 
         self.conf['base_path'] = bp
