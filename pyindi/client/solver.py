@@ -35,11 +35,13 @@ if SEXTRACTOR_EXEC is None:
 if SEXTRACTOR_EXEC is None:
     SEXTRACTOR_EXEC = which('sextractor')
 if SEXTRACTOR_EXEC is None:
+    SEXTRACTOR_EXEC = which('source-extractor')
+if SEXTRACTOR_EXEC is None:
     raise RuntimeError(f'could not find sextractor executable, please set {SEXTRACTOR_ENV} environment varialbe')
 
-if ASTROMETRY_ENV is None:
-    ASTROMETRY_ENV = which('solve-field')
-if ASTROMETRY_ENV is None:
+if ASTROMETRY_EXEC is None:
+    ASTROMETRY_EXEC = which('solve-field')
+if ASTROMETRY_EXEC is None:
     raise RuntimeError(f'could not find solve-field executable, please set {ASTROMETRY_ENV} environment varialbe')
 
 SEX_PARAM = [
