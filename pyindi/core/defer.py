@@ -21,12 +21,19 @@ from collections import namedtuple
 async def wait_await(obj):
     return await obj
 
-async def continue_if_ok(fut, callback,*args):
+async def continue_if_ok(fut, callback,*args,**kwargs):
     res = fut.result()
     if res.state != IPS.Ok:
         return await Just(IPS.Alert,"fail from previous error",data=res)
     else:
-        return await callback(*args)
+        return await callback(*args,**kwargs)
+    
+async def continue_not_alert(fut, callback,*args,**kwargs):
+    res = fut.result()
+    if res.state == IPS.Alert:
+        return await Just(IPS.Alert,"fail from previous error",data=res)
+    else:
+        return await callback(*args,**kwargs)
     
 DeferResult = namedtuple('DeferResult','state data message',defaults=[IPS.Idle,None,''])
 
@@ -186,6 +193,12 @@ class DeferChain(DeferBase):
         self.result = None
         a =  DeferAction(self.future_links[-1],action)
         self.future_links.append(a)
+
+    def link_ok(self,callback,*args,**kwargs):
+        self.add(lambda x: continue_if_ok(x,callback,*args,**kwargs))
+
+    def link_not_alert(self,callback,*args,**kwargs):
+        self.add(lambda x: continue_not_alert(x,callback,*args,**kwargs))
 
     async def wait(self):
         self.result =  await self.future_links[-1]

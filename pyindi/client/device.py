@@ -27,7 +27,20 @@ class Device:
 
         return DeferProperty(self.gw,self.dev_name,pname,obj)
 
+    def config_load(self):
+        return self.__do_config('CONFIG_LOAD')
+    
+    def config_save(self):
+        return self.__do_config('CONFIG_SAVE')
+    
+    def config_default(self):
+        return self.__do_config('CONFIG_DEFAULT')
+    
+    def config_purge(self):
+        return self.__do_config('CONFIG_PURGE')
+
     async def setTCPConnection(self, addr, port):
+        #TODO update using DeferChain
         loop = asyncio.get_running_loop()
 
         if (conn_mode := self.gw.getVector(self.dev_name,"CONNECTION_MODE")) is None:
@@ -67,6 +80,20 @@ class Device:
         conn.items['DISCONNECT'] = ISS.Off if connect else ISS.On 
 
         obj = loop.create_task(self.gw.sendVector(conn))
+        return DeferProperty(self.gw,self.dev_name,pname,obj)
+
+    def __do_config(self,action):
+        loop = asyncio.get_running_loop()
+        pname = "CONFIG_PROCESS"
+        if (config := self.gw.getVector(self.dev_name,pname)) is None:
+            return Just(IPS.Alert,"Cannot find CONFIG_PROCESS property")
+
+        for k in config.items:
+            config.items[k] = ISS.Off
+        
+        config.items[action]    = ISS.On 
+
+        obj = loop.create_task(self.gw.sendVector(config))
         return DeferProperty(self.gw,self.dev_name,pname,obj)
 
     def isConnected(self):
