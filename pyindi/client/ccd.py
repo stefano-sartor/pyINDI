@@ -60,7 +60,7 @@ class DeferImage(DeferBase):
         exp_res = self.exp_prop.check()
 
         if exp_res.state != IPS.Ok:
-            return DeferResult(exp_res.state,None, exp_res.msg)
+            return DeferResult(exp_res.state,None, exp_res.message)
 
         if self.fut_data.cancelled():
             return DeferResult(IPS.Alert,None, "IMAGE readout Cancelled")            
