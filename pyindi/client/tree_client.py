@@ -17,7 +17,7 @@ from pyindi.client import INDIClient
 import asyncio
 import time
 import datetime as dt
-from pyindi.core.indi_types import vector_factory,IPS,BLOBVectorProperty
+from pyindi.core.indi_types import vector_factory,IPS,ISS,BLOBVectorProperty
 import logging
 from uuid import uuid4
 
@@ -113,12 +113,15 @@ class TreeClient(INDIClient):
         self.parser.setContentHandler( self.handler )
         self.parser.feed("<root>")
 
-        self.handler.def_property = self.handle_property
-        self.handler.set_property = self.handle_property
+        self.handler.def_property = self._def_property
+        self.handler.set_property = self._set_property
         self.handler.del_property = lambda ele : self.prune(ele.attrib.get("device"), ele.attrib.get("name"))
            
         self.handler.new_message = self.new_msg 
         self.tree={}
+
+        loop = asyncio.get_event_loop()
+#        self.timer_check = loop.call_later(5,self.check_devices())
 
     async def xml_from_indiserver(self, data):
         self.parser.feed(data)
@@ -152,9 +155,13 @@ class TreeClient(INDIClient):
     def new_msg(self, message):
         pass
 
-    def handle_property(self,ele):
+    def _def_property(self,ele):
+        return self._set_property(ele)
+
+    def _set_property(self,ele):
         vec = vector_factory(ele)
         if vec is None:
+            logging.error(f'bad vector {ele}')
             return
 
         dname = vec.device
@@ -182,3 +189,26 @@ class TreeClient(INDIClient):
                 self.prune(device,p)
             self.tree.pop(device)
             return
+
+    async def check_devices(self):
+        pass
+        now = dt.datetime.now()
+
+        zombie_devs = []
+        for dev in self.tree:
+            if (conn := self.tree[dev].get('CONNECTION')) is not None:
+                if conn.items['CONNECT'] == ISS.Off:
+                    pass #TODO
+
+
+            deadline = dt.datetime(year=1,month=1,day=1)
+            poll = self.tree[dev].get('POLLING_PERIOD')
+            conn = self.tree[dev].get('CONNECTION')
+
+            if poll is not None and conn is None:
+                pass
+                #PERIOD_MS
+                #CONNECT
+
+        loop = asyncio.get_event_loop()
+        self.timer_check = loop.call_later(5,self.check_devices())

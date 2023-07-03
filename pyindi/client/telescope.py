@@ -24,7 +24,8 @@ from pyindi.core.defer import *
 from copy import deepcopy
 import logging
 
-
+STELLAR_DAY = 86164.098903691
+TRACKRATE_SIDEREAL = ((360.0 * 3600.0) / STELLAR_DAY)
 class DIRECTION(Enum):
     NORTH = 'MOTION_NORTH'
     SOUTH = 'MOTION_SOUTH'
@@ -36,8 +37,8 @@ class Telescope(Device):
     def __init__(self, gateway, dev_name) -> None:
         super().__init__(gateway, dev_name)
         self.location = None
-        self.guide_speed_ra = 15.041067 * 0.5
-        self.guide_speed_dec = 15.041067 * 0.5
+        self.guide_speed_ra =  0.5 * TRACKRATE_SIDEREAL
+        self.guide_speed_dec = 0.5 * TRACKRATE_SIDEREAL
 
     def getLocation(self):
         if self.location is not None:
@@ -234,6 +235,9 @@ class Telescope(Device):
         return TETE(ra=radec.items['RA'] * u.hour, dec=radec.items['DEC']*u.deg, location=self.getLocation(), obstime=Time.now())
                             
     def refine_pointing(self, solver, hdulist, target,use_guide=True):
+        if use_guide:
+            return self.guide_to(solver,hdulist,target)
+
         step0 = None
         if hdulist[0].header.get('WCSAXES'):
             try:
@@ -248,7 +252,6 @@ class Telescope(Device):
         chain = DeferChain(step0)
 
         async def continuation(x):
-            GUIDE_SPEED_ARCSECSEC = 15.041067 * 0.5
             log = logging.getLogger("refine_pointing")
             res = x.result()
             if res.state != IPS.Ok:
@@ -270,41 +273,11 @@ class Telescope(Device):
             log.info(
                 f'delta RA: {delta_ra.to_value(u.arcsec):.2f}", Dec: {delta_dec.to_value(u.arcsec):.2f}"')
             
-            if not use_guide:
-                log.info('using goto')
-                coord = SkyCoord(ra=ra_sol + delta_ra, dec=dec_sol +
-                                 delta_dec, frame="fk5")
-                return await self.goto(coord)
-            else:
-                guide_chain = DeferChain()
+            log.info('using goto')
+            coord = SkyCoord(ra=ra_sol + delta_ra, dec=dec_sol + delta_dec, frame="fk5")
+            return await self.goto(coord)
 
-                ra_sec  = delta_ra.to_value(u.arcsec) / GUIDE_SPEED_ARCSECSEC
-                dec_sec = delta_dec.to_value(u.arcsec) / GUIDE_SPEED_ARCSECSEC
 
-                guide_ra  = abs(ra_sec*1000)
-                guide_dec = abs(dec_sec*1000)
-
-                if ra_sec < 0:
-                    obj = self.timed_guide(DIRECTION.WEST,guide_ra)
-                    guide_chain.add(lambda _ : wait_await(obj))
-                    log.info(f'GUIDE WEST {guide_ra:.1f}')
-                else:
-                    obj = self.timed_guide(DIRECTION.EAST,guide_ra)
-                    guide_chain.add(lambda _ : wait_await(obj))
-                    log.info(f'GUIDE EAST {guide_ra:.1f}')
-
-                if dec_sec > 0:
-                    obj = self.timed_guide(DIRECTION.NORTH,guide_dec)
-                    guide_chain.add(lambda _ : wait_await(obj))
-                    log.info(f'GUIDE NORTH {guide_dec:.1f}')
-                else:
-                    obj = self.timed_guide(DIRECTION.SOUTH,guide_dec)
-                    guide_chain.add(lambda _ : wait_await(obj))
-                    log.info(f'GUIDE SOUTH {guide_dec:.1f}')
-
-                return await guide_chain
-
-        
         chain.add(lambda x: continuation(x))
         return chain
 
@@ -323,7 +296,6 @@ class Telescope(Device):
         chain = DeferChain(step0)
 
         async def continuation(x):
-            GUIDE_SPEED_ARCSECSEC = 15.041067 * 0.5
             log = logging.getLogger("refine_pointing")
             res = x.result()
             if res.state != IPS.Ok:

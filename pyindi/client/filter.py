@@ -13,45 +13,42 @@
 from .device import Device
 from pyindi.core.defer import *
 from pyindi.core.indi_types import IPS
+import logging
 
 class FilterWheel(Device):
     def __init__(self, gateway, dev_name) -> None:
         super().__init__(gateway, dev_name)
-        self.filters=[]
 
 
     def getFilters(self):
-        if len(self.filters) >0:
-            return self.filters
-        
         if (prop := self.gw.getVector(self.dev_name,"FILTER_NAME")) is None:
+            logging.warning(f'no FILTER_NAME present in filterwheel device {self.dev_name}')
             return []
         l = []
         for _,v in prop.items.items():
             l.append(v)
-        
-        self.filters = l
-        return self.filters
+        return l
     
     def setFilter(self,f):
+        filters = self.getFilters()
+
         nf = -1
         if type(f) == int:
             nf = f
         if type(f) == str:
-            if f in self.getFilters():
-                nf = 1 + self.filters.index(f)
+            if f in filters:
+                nf = 1 + filters.index(f)
 
         pname = "FILTER_SLOT"
 
         if (slot := self.gw.getVector(self.dev_name,pname)) is None:
             return Just(IPS.Alert, "FilterWheel device not connected")
         
-        #FIXME find a solution for limits...
-        # if nf < slot[0].min:
-            # return Just(IPS.Alert, "Bad filter value")
-        # 
-        # if nf > slot[0].max:
-            # return Just(IPS.Alert, "Bad filter value")
+        if nf <= 0:
+            return Just(IPS.Alert, "Bad filter value")
+
+        if nf > len(filters):
+            return Just(IPS.Alert, "Bad filter value")
         
         slot.items['FILTER_SLOT_VALUE'] =nf
 
