@@ -121,7 +121,7 @@ class TreeClient(INDIClient):
         self.tree={}
 
         loop = asyncio.get_event_loop()
-#        self.timer_check = loop.call_later(5,self.check_devices())
+        self.task_check = loop.create_task(self.check_devices())
 
     async def xml_from_indiserver(self, data):
         self.parser.feed(data)
@@ -191,24 +191,42 @@ class TreeClient(INDIClient):
             return
 
     async def check_devices(self):
-        pass
-        now = dt.datetime.now()
+        await asyncio.sleep(10)
+        try:
+            now = dt.datetime.now()
 
-        zombie_devs = []
-        for dev in self.tree:
-            if (conn := self.tree[dev].get('CONNECTION')) is not None:
-                if conn.items['CONNECT'] == ISS.Off:
-                    pass #TODO
+            zombie_devs = []
+            for dev in self.tree:
+                poll = self.tree[dev].get('POLLING_PERIOD')
+                conn = self.tree[dev].get('CONNECTION')
 
+                if conn is None:
+                    continue
 
-            deadline = dt.datetime(year=1,month=1,day=1)
-            poll = self.tree[dev].get('POLLING_PERIOD')
-            conn = self.tree[dev].get('CONNECTION')
+                if poll is None:
+                    continue
 
-            if poll is not None and conn is None:
-                pass
-                #PERIOD_MS
-                #CONNECT
+                if conn.vec.items['CONNECT'] == ISS.Off:
+                    continue
 
+                pt = poll.vec.items['PERIOD_MS']
+                deadline = now - dt.timedelta(milliseconds=pt*10)
+                zombieline = now - dt.timedelta(milliseconds=pt*5)
+
+                if not any(map(lambda x: x.last_update > deadline,self.tree[dev].values())):
+#                    logging.error(f'device "{dev}" WILL BE REMOVED for not sendind data since {deadline}.')
+                    zombie_devs.append(dev)
+                    continue
+
+                if not any(map(lambda x: x.last_update > zombieline,self.tree[dev].values())):
+#                    logging.warning(f'device "{dev}" is late on POLLING_PERIOD, not sendind data since {zombieline}.')
+                    await self.getProperties(dev)
+
+#            for dev in zombie_devs:
+#                self.prune(dev)
+        except Exception as e:
+            logging.error(f'check_devices error {e}')
+
+        logging.debug('check_devices terminated, rescheduling...')
         loop = asyncio.get_event_loop()
-        self.timer_check = loop.call_later(5,self.check_devices())
+        self.task_check = loop.create_task(self.check_devices())

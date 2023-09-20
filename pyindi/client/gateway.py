@@ -18,7 +18,7 @@ from .filter import FilterWheel
 from .telescope import Telescope
 from .ccd import CCD
 from pyindi.core.defer import DeferResult
-
+from copy import deepcopy
 class Gateway(TreeClient):
     def __init__(self):
         super().__init__()
@@ -113,3 +113,18 @@ class Gateway(TreeClient):
         xml = vec.to_xml()
         await self.xml_to_indiserver(xml)
         return DeferResult(IPS.Ok,vec,"vec sent")
+
+    async def setSendVector(self, device: str, name: str, items: dict, fill=None):
+        v = self.getVector(device, name)
+        if v is None:
+            return DeferResult(IPS.Alert, None, f"cannot find '{device}.{name}'")
+
+        vec = deepcopy(v)
+        if fill is not None:
+            for k in vec.items:
+                vec.items[k] = fill
+
+        for k, val in items.items():
+            vec.items[k] = val
+
+        return await self.sendVector(vec)

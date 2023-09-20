@@ -23,7 +23,6 @@ class XMLHandler(ContentHandler):
         self._is_child = False
         self._currentElement = None
         self._rootElement = None
-        self._currentMessage = None
 
         self.def_property = lambda x: x
         self.set_property = lambda x: x
@@ -38,6 +37,7 @@ class XMLHandler(ContentHandler):
                 return
 
             if name[:3] not in ("set", "def","new", "one", "mes", "del"):
+                logging.error(f'unknown {name} tag')
                 return
 
             if self._rootElement is not None:
@@ -51,17 +51,14 @@ class XMLHandler(ContentHandler):
                     return
                 if 'name' not in attr.keys():
                     return
-                self._rootElement = etree.Element(name, **dict(attr))
-                self._currentElement = self._rootElement
 
             elif name == 'delProperty':
                 if 'device' not in attr.keys():
                     return
-                self._rootElement = etree.Element(name, **dict(attr))
-                self._currentElement = self._rootElement
 
-            elif name == "message":
-                self._currentMessage = etree.Element(name, **dict(attr))
+            self._rootElement = etree.Element(name, **dict(attr))
+            self._currentElement = self._rootElement
+
         except Exception as e:
             logging.error(f'startElement({name},{attr}):{type(e)}{e}')
             #raise
@@ -92,12 +89,9 @@ class XMLHandler(ContentHandler):
                 
                 elif name == 'delProperty':
                     self.del_property(self._rootElement)
-                    self._rootElement = None
 
                 elif name == "message":
-                    self.new_message(self._currentMessage)
-                    self._currentMessage = None
-                    self._rootElement = None
+                    self.new_message(self._rootElement)
 
                 self._rootElement = None
 
