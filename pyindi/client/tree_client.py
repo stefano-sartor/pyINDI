@@ -162,7 +162,7 @@ class TreeClient(INDIClient):
         vec = vector_factory(ele)
         if vec is None:
             logging.error(f'bad vector {ele}')
-            return
+            return None
 
         dname = vec.device
         pname = vec.name
@@ -174,6 +174,7 @@ class TreeClient(INDIClient):
             dev[pname]=PropertyControl()
         prop = dev[pname]
         prop.new_vec(vec)
+        return vec
 
     def prune(self,device:str, pname=None):
         if (dev := self.tree.get(device)) is None:
