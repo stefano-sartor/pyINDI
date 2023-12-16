@@ -79,4 +79,4 @@ except Exception:
 #setup(use_scm_version={'write_to': os.path.join('pyindi', 'version.py'),
 #                       'write_to_template': VERSION_TEMPLATE}, install_requires=['lxml'])
 
-setup(version='0.0.7', name='pyindi')
+setup(version='0.0.8', name='pyindi')

@@ -113,14 +113,12 @@ class DeferProperty(DeferBase):
             return DeferResult(IPS.Busy,None, "Waiting for triggering event to complete")
         if not self.step_1.done():
             return DeferResult(IPS.Busy,None, "Waiting for callback to complete")
-
+        if not self.step_2.done():
+            return DeferResult(IPS.Busy,None, "Waiting for property to complete")
         if self.step_2.cancelled():
             return DeferResult(IPS.Alert,None, "Future cancelled, maybe device has crashed")
 
-        if (vec := self.gateway.getVector(self.dev_name, self.prop_name)) is None:
-            return DeferResult(IPS.Alert,None, "Property not available, maybe device has crashed")
-
-        self.prop = vec
+        self.prop = self.step_2.result()
         self.result = DeferResult(self.prop.state, self.prop, "data ready")
         return self.result
         

@@ -68,8 +68,7 @@ class DeferImage(DeferBase):
         if not self.fut_data.done():
             return DeferResult(IPS.Busy,None,'Downloading data')
 
-        vec = self.gw.getVector(self.dev_name,self.sensor_name)
-
+        vec = self.fut_data.result()
         for _,v in vec.items.items():
             buff =v['data']
             buff.seek(0)
@@ -154,6 +153,14 @@ class CCD(Device):
         loop = asyncio.get_running_loop()
         obj = loop.create_task(self.gw.sendVector(vec))
         return DeferProperty(self.gw, self.dev_name, pname,obj)
+
+    def getFrameVec(self):
+        pname = "CCD_FRAME"
+        return self.gw.getVector(self.dev_name,pname)
+
+    def getInfoVec(self):
+        pname = "CCD_INFO"
+        return self.gw.getVector(self.dev_name,pname)
 
     def setBinning(self,hor,vert):
         pname = "CCD_BINNING"
