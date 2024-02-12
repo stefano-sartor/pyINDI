@@ -19,25 +19,31 @@ from .telescope import Telescope
 from .ccd import CCD
 from pyindi.core.defer import DeferResult
 from copy import deepcopy
+
+
+class DeviceNotFoundError(RuntimeError):
+    pass
+
+
 class Gateway(TreeClient):
     def __init__(self):
         super().__init__()
         self.stream = None
 
-    async def beginStream(self,indiserver,port):
-        self.start(indiserver,port)
+    async def beginStream(self, indiserver, port):
+        self.start(indiserver, port)
         self.stream = asyncio.create_task(self.connect())
         await self.connection()
         await self.getProperties()
-             
-    def register_callback(self,device,prop,callback,once=False):
+
+    def register_callback(self, device, prop, callback, once=False):
         if (dev := self.tree.get(device)) is None:
             return None
         if (pc := dev.get(prop)) is None:
             return None
-        return pc.register_callback(callback,once)
+        return pc.register_callback(callback, once)
 
-    def unregister_callback(self,device,prop,key):
+    def unregister_callback(self, device, prop, key):
         if (dev := self.tree.get(device)) is None:
             return False
         if (pc := dev.get(prop)) is None:
@@ -53,49 +59,50 @@ class Gateway(TreeClient):
             return 0
         return int(value)
 
-    def getDeviceFromInterface(self,interface,dev_name=None):
+    def getDeviceFromInterface(self, interface, dev_name=None):
         if dev_name is not None:
             if interface.value & self.getDeviceInterface(dev_name) > 0:
                 return dev_name
             else:
-                raise RuntimeError(f'Device {dev_name} does not implement {interface.name} interface')
-            
+                raise DeviceNotFoundError(
+                    f'Device {dev_name} does not implement {interface.name} interface')
+
         for k in self.tree.keys():
             if interface.value & self.getDeviceInterface(k) > 0:
                 return k
 
-        raise RuntimeError(f'No Device implements {interface.name} interface')                
+        raise DeviceNotFoundError(
+            f'No Device implements {interface.name} interface')
 
-    def getFocuser(self, dev_name=None):    
-        dname = self.getDeviceFromInterface(INTERFACE.FOCUSER,dev_name)
+    def getFocuser(self, dev_name=None):
+        dname = self.getDeviceFromInterface(INTERFACE.FOCUSER, dev_name)
         return Focuser(self, dname)
-           
-    def getFilterWheel(self, dev_name=None):    
-        dname = self.getDeviceFromInterface(INTERFACE.FILTER,dev_name)
+
+    def getFilterWheel(self, dev_name=None):
+        dname = self.getDeviceFromInterface(INTERFACE.FILTER, dev_name)
         return FilterWheel(self, dname)
 
-    def getTelescope(self, dev_name=None):    
-        dname = self.getDeviceFromInterface(INTERFACE.TELESCOPE,dev_name)
+    def getTelescope(self, dev_name=None):
+        dname = self.getDeviceFromInterface(INTERFACE.TELESCOPE, dev_name)
         return Telescope(self, dname)
 
-    def getCCD(self, dev_name=None):    
-        dname = self.getDeviceFromInterface(INTERFACE.CCD,dev_name)
+    def getCCD(self, dev_name=None):
+        dname = self.getDeviceFromInterface(INTERFACE.CCD, dev_name)
         xml = f'<enableBLOB device="{dname}">Also</enableBLOB>'
         asyncio.create_task(self.xml_to_indiserver(xml))
         return CCD(self, dname)
 
-
-    def __getPC(self,device:str,name:str):
+    def __getPC(self, device: str, name: str):
         if (dev := self.tree.get(device)) is None:
             return None
         return dev.get(name)
 
-    def getVector(self,device:str,name:str):
-        if(pc := self.__getPC(device,name)) is None:
+    def getVector(self, device: str, name: str):
+        if (pc := self.__getPC(device, name)) is None:
             return None
         return pc.vec
 
-    def getFuture(self,device:str,name:str):
+    def getFuture(self, device: str, name: str):
         loop = asyncio.get_event_loop()
         if (dev := self.tree.get(device)) is None:
             f = loop.create_future()
@@ -107,12 +114,12 @@ class Gateway(TreeClient):
             return f
         return pc.get_future()
 
-    async def sendVector(self,vec):
-        if( pc := self.__getPC(vec.device,vec.name)) is not None:
+    async def sendVector(self, vec):
+        if (pc := self.__getPC(vec.device, vec.name)) is not None:
             pc.vec.state = IPS.Busy
         xml = vec.to_xml()
         await self.xml_to_indiserver(xml)
-        return DeferResult(IPS.Ok,vec,"vec sent")
+        return DeferResult(IPS.Ok, vec, "vec sent")
 
     async def setSendVector(self, device: str, name: str, items: dict, fill=None):
         v = self.getVector(device, name)

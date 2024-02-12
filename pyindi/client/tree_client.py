@@ -141,16 +141,6 @@ class TreeClient(INDIClient):
                 else:
                     await asyncio.sleep(0.25) 
 
-    async def getProperties(self, device=None, name=None):
-        if device is None:
-            xml = f"<getProperties version='1.7' />\n"
-        elif name is None:
-            xml = f"<getProperties version='1.7' device='{device}'/>\n"
-        else:
-            xml = f"<getProperties version='1.7' device='{device}' name='{name}'/>\n"
-
-        await self.xml_to_indiserver(xml)
-
 
     def new_msg(self, message):
         pass

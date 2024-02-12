@@ -11,6 +11,7 @@
 '''
 
 from .client import *
-from .gateway import Gateway
+from .gateway import Gateway, DeviceNotFoundError
 
-__all__ = ['INDIConn','INDIClient','INDIClientSingleton','INDIClientContainer','Gateway']
+__all__ = ['INDIConn', 'INDIClient', 'INDIClientSingleton',
+           'INDIClientContainer', 'Gateway', 'DeviceNotFoundError']
