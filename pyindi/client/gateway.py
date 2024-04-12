@@ -88,8 +88,7 @@ class Gateway(TreeClient):
 
     def getCCD(self, dev_name=None):
         dname = self.getDeviceFromInterface(INTERFACE.CCD, dev_name)
-        xml = f'<enableBLOB device="{dname}">Also</enableBLOB>'
-        asyncio.create_task(self.xml_to_indiserver(xml))
+        self.enable_blob(dev_name)
         return CCD(self, dname)
 
     def __getPC(self, device: str, name: str):

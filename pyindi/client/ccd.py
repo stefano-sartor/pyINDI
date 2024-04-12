@@ -174,19 +174,27 @@ class CCD(Device):
         loop = asyncio.get_running_loop()
         obj = loop.create_task(self.gw.sendVector(vec))
         return DeferProperty(self.gw, self.dev_name, pname,obj)
+    
+    def clearHeader(self):
+        return self.setHeaderKeyword('INDI_CLEAR','')
 
-    def setHeader(self,object='Unknown',obeserver='Unknown'):
+    def setHeaderKeyword(self,keyword,value,comment=''):
         pname = "FITS_HEADER"
 
         if (vec := self.gw.getVector(self.dev_name,pname)) is None:
             return Just(IPS.Alert, "CCD device not connected")
 
-        vec.items['FITS_OBSERVER'] = obeserver
-        vec.items['FITS_OBJECT'] = object
+        vec.items['KEYWORD_NAME'] = keyword
+        vec.items['KEYWORD_VALUE'] = value
+        vec.items['KEYWORD_COMMENT'] = comment
 
         loop = asyncio.get_running_loop()
         obj = loop.create_task(self.gw.sendVector(vec))
         return DeferProperty(self.gw, self.dev_name, pname,obj)
+    
+
+    def setHeaderObject(self,object):
+        return self.setHeaderKeyword("OBJECT",object)
 
 
     def saveOnDevice(self, active: bool = True):

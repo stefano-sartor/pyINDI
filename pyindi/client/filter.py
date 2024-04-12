@@ -55,3 +55,11 @@ class FilterWheel(Device):
         loop = asyncio.get_running_loop()
         obj = loop.create_task(self.gw.sendVector(slot))
         return DeferProperty(self.gw, self.dev_name, pname,obj)
+    
+    def getFilter(self):
+        filters = self.getFilters()
+        if (slot := self.gw.getVector(self.dev_name,"FILTER_SLOT")) is None:
+            return None
+        
+        idx = int(slot.items['FILTER_SLOT_VALUE']) -1
+        return filters[idx]

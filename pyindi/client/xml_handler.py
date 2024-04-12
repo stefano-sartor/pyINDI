@@ -35,6 +35,9 @@ class XMLHandler(ContentHandler):
         try:
             if name == "root":
                 return
+            
+            if name == 'getProperties':
+                return
 
             if name[:3] not in ("set", "def","new", "one", "mes", "del"):
                 logging.error(f'unknown {name} tag')

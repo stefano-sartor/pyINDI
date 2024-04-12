@@ -115,16 +115,22 @@ class TreeClient(INDIClient):
 
         self.handler.def_property = self._def_property
         self.handler.set_property = self._set_property
-        self.handler.del_property = lambda ele : self.prune(ele.attrib.get("device"), ele.attrib.get("name"))
-           
-        self.handler.new_message = self.new_msg 
+        self.handler.del_property = self._del_property
+        self.handler.new_message = self.new_msg  
+        
         self.tree={}
+        self.blob_set = set()
 
         loop = asyncio.get_event_loop()
         self.task_check = loop.create_task(self.check_devices())
 
     async def xml_from_indiserver(self, data):
-        self.parser.feed(data)
+        try:
+            self.parser.feed(data)
+        except Exception as e:
+            logging.critical(f'error decoding message from server: {e}')
+            logging.debug(f'data: {data}')
+            raise e
 
     async def connection(self, timeout=0):
         if timeout > 0:
@@ -141,9 +147,36 @@ class TreeClient(INDIClient):
                 else:
                     await asyncio.sleep(0.25) 
 
+    def _set_parser(self):
+        handler=XMLHandler()
+        parser = ExpatParser()
+        parser.setContentHandler( self.handler )
+        parser.feed("<root>")
+
+        handler.def_property = self.handler.def_property
+        handler.set_property = self.handler.set_property
+        handler.del_property = self.handler.del_property
+        handler.new_message = self.handler.new_message
+
+        self.handler = handler
+        self.parser = parser
+
+    async def on_disconnect(self):
+        logging.debug('on_disconnect')
+        self._set_parser()
+
+    async def on_connect(self):
+        await super().on_connect()
+
+        # if we've just reconnected, this might not be empty
+        for xml in self.blob_set:
+            await self.xml_to_indiserver(xml)
 
     def new_msg(self, message):
         pass
+
+    def _del_property(self,ele):
+        self.prune(ele.attrib.get("device"), ele.attrib.get("name"))
 
     def _def_property(self,ele):
         return self._set_property(ele)
@@ -180,6 +213,12 @@ class TreeClient(INDIClient):
                 self.prune(device,p)
             self.tree.pop(device)
             return
+    
+    def enable_blob(self,device:str):
+        xml = f'<enableBLOB device="{device}">Also</enableBLOB>'
+        self.blob_set.add(xml)
+        asyncio.create_task(self.xml_to_indiserver(xml))
+
 
     async def check_devices(self):
         await asyncio.sleep(10)

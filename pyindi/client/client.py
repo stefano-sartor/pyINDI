@@ -3,6 +3,7 @@
 # Python imports
 import asyncio
 import logging
+import codecs
 
 """
 INDIClient runs the task of reading from the driver from indiserver with
@@ -44,6 +45,7 @@ class INDIConn:
         self.reader = None
         self.timeout = 3
         self.read_width = 30000
+        self.dec = codecs.getincrementaldecoder('utf8')()
 
     async def connect(self, host, port):
         """Connects to a ip and port
@@ -114,6 +116,7 @@ class INDIConn:
         """
         logging.debug('Resetting stream')
         self.reader = self.writer = None
+        self.dec = codecs.getincrementaldecoder('utf8')()
         return None
 
     @property
@@ -157,7 +160,7 @@ class INDIConn:
 
         response = await self.reader.read(self.read_width)
 
-        return response.decode()
+        return self.dec.decode(response)
 
 
 class INDIClient:
@@ -217,12 +220,12 @@ class INDIClient:
                 logging.debug(
                     f"Connected to indiserver {self.host}:{self.port}"
                 )
-                await self.getProperties()
-                self.task = asyncio.gather(
+                await self.on_connect()
+                task = asyncio.gather(
                     self.read_from_indiserver(),
                 )
-                await self.task
-                exc = self.task.exception()
+                await task
+                exc = task.exception()
                 if exc:
                     raise exc
 
@@ -255,7 +258,38 @@ class INDIClient:
             await self.conn.disconnect()
             self.conn = None
 
+        await self.on_disconnect()
         return None
+    
+    async def on_connect(self):
+        """Callback called when connection with indiserver is established.
+
+        usually you want to send a getProperties message, which is the default
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+        await self.getProperties()
+
+    async def on_disconnect(self):
+        """Callback called when connection with indiserver is lost/closed.
+
+        you should cliean and prepare for reconnection, like reset xml parser.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+        raise NotImplemented("Implement using a subclass!")
 
     @property
     def is_connected(self):
